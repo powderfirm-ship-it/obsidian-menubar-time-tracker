@@ -1,8 +1,11 @@
-import { Platform, Plugin } from "obsidian";
+import { Notice, Platform, Plugin } from "obsidian";
 import { ElectronRemote, getElectronRemote } from "./electron-tray";
+import { formatHuman } from "./format";
+import { addKnownProject } from "./session";
 import { StopModal, StopResult } from "./stop-modal";
 import { Timer } from "./timer";
 import { MenuBarTray, MenuTemplate } from "./tray";
+import { writeSession } from "./writer";
 
 export interface PluginSettings {
 	running: boolean;
@@ -90,12 +93,27 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		}).open();
 	}
 
-	// Replaced in U5 with the real session writer. For now, discard after logging.
 	private async handleSubmit(elapsedMs: number, result: StopResult): Promise<void> {
-		console.log(
-			`Menu-Bar Time Tracker: save ${result.project} (${elapsedMs}ms) — writer pending (U5)`,
-		);
-		this.timer?.clear();
+		const startMs = this.settings.startedAt ?? Date.now() - elapsedMs;
+		const endMs = startMs + elapsedMs;
+		try {
+			// Write first; only on success update state, clear the timer, and confirm.
+			await writeSession(this.app, {
+				folder: this.settings.sessionFolder,
+				startMs,
+				endMs,
+				project: result.project,
+				description: result.description,
+			});
+			this.settings.knownProjects = addKnownProject(this.settings.knownProjects, result.project);
+			this.timer?.clear(); // clears running state and persists (incl. knownProjects)
+			new Notice(`Session saved — ${result.project}, ${formatHuman(elapsedMs / 60000)}`);
+		} catch (e) {
+			console.error("Menu-Bar Time Tracker: failed to write session", e);
+			new Notice("Time Tracker: couldn't save the session — timer kept, try again.");
+			// Keep elapsed; re-present the modal so the session isn't lost.
+			this.openStopModal(elapsedMs);
+		}
 	}
 
 	// Replaced in U6 with cancel/settings items.
