@@ -1,24 +1,31 @@
-import { Notice, Platform, Plugin } from "obsidian";
+import { Notice, Platform, Plugin, normalizePath } from "obsidian";
+import { buildBaseFile } from "./base-asset";
 import { ElectronRemote, getElectronRemote } from "./electron-tray";
 import { formatHuman } from "./format";
 import { addKnownProject } from "./session";
+import { TimeTrackerSettingTab } from "./settings";
 import { StopModal, StopResult } from "./stop-modal";
 import { Timer } from "./timer";
 import { MenuBarTray, MenuTemplate } from "./tray";
 import { writeSession } from "./writer";
+
+const DEFAULT_FOLDER = "Time Log/Sessions";
+const BASE_FILENAME = "Time per project.base";
 
 export interface PluginSettings {
 	running: boolean;
 	startedAt: number | null;
 	knownProjects: string[];
 	sessionFolder: string;
+	baseFilterFolder: string | null;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
 	running: false,
 	startedAt: null,
 	knownProjects: [],
-	sessionFolder: "Time Log/Sessions",
+	sessionFolder: DEFAULT_FOLDER,
+	baseFilterFolder: null,
 };
 
 export default class MenubarTimeTrackerPlugin extends Plugin {
@@ -61,8 +68,12 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			callback: () => this.timer?.toggle(),
 		});
 
-		// Resume a timer that was running when Obsidian last closed (R11).
-		this.app.workspace.onLayoutReady(() => this.timer?.resumeIfRunning());
+		this.addSettingTab(new TimeTrackerSettingTab(this.app, this));
+
+		this.app.workspace.onLayoutReady(() => {
+			this.timer?.resumeIfRunning(); // R11
+			void this.deployBaseIfAbsent();
+		});
 	}
 
 	onunload(): void {
@@ -108,6 +119,7 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			this.settings.knownProjects = addKnownProject(this.settings.knownProjects, result.project);
 			this.timer?.clear(); // clears running state and persists (incl. knownProjects)
 			new Notice(`Session saved — ${result.project}, ${formatHuman(elapsedMs / 60000)}`);
+			void this.deployBaseIfAbsent();
 		} catch (e) {
 			console.error("Menu-Bar Time Tracker: failed to write session", e);
 			new Notice("Time Tracker: couldn't save the session — timer kept, try again.");
@@ -116,8 +128,69 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		}
 	}
 
-	// Replaced in U6 with cancel/settings items.
 	private buildMenuTemplate(): MenuTemplate {
-		return [{ label: "Time Tracker", enabled: false }];
+		const running = this.timer?.running ?? false;
+		return [
+			{
+				label: running ? "Stop timer" : "Start timer",
+				enabled: !this.modalOpen,
+				click: () => this.timer?.toggle(),
+			},
+			{
+				label: "Cancel timer",
+				enabled: running && !this.modalOpen,
+				click: () => this.timer?.cancel(),
+			},
+			{ type: "separator" },
+			{
+				label: "Settings",
+				click: () => this.openSettings(),
+			},
+		];
+	}
+
+	private openSettings(): void {
+		const setting = (this.app as unknown as {
+			setting?: { open?: () => void; openTabById?: (id: string) => void };
+		}).setting;
+		setting?.open?.();
+		setting?.openTabById?.(this.manifest.id);
+	}
+
+	// Drops the "Time per project" Base next to the session folder the first time
+	// the folder exists, templating its filter and never overwriting an existing file.
+	private async deployBaseIfAbsent(): Promise<void> {
+		const folder = normalizePath(this.settings.sessionFolder);
+		const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
+		const basePath = parent ? `${parent}/${BASE_FILENAME}` : BASE_FILENAME;
+
+		if (this.app.vault.getAbstractFileByPath(basePath)) {
+			if (!this.settings.baseFilterFolder) {
+				this.settings.baseFilterFolder = folder;
+				await this.saveSettings();
+			}
+			return;
+		}
+		// The parent must exist; it will once a session has been written. Until then,
+		// skip — the next write retries.
+		if (parent && !this.app.vault.getAbstractFileByPath(parent)) return;
+		try {
+			await this.app.vault.create(basePath, buildBaseFile(folder));
+			this.settings.baseFilterFolder = folder;
+			await this.saveSettings();
+		} catch (e) {
+			console.error("Menu-Bar Time Tracker: couldn't deploy the Base", e);
+		}
+	}
+
+	checkBaseFolderDrift(): void {
+		const deployed = this.settings.baseFilterFolder;
+		const current = normalizePath(this.settings.sessionFolder);
+		if (deployed && deployed !== current) {
+			new Notice(
+				`Time Tracker: your "${BASE_FILENAME}" still filters "${deployed}". ` +
+					`Update its file.inFolder filter to "${current}".`,
+			);
+		}
 	}
 }
