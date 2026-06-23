@@ -1,7 +1,7 @@
 {
 	"id": "menubar-time-tracker",
 	"name": "Menu-Bar Time Tracker",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "1.5.0",
 	"description": "One-click project time tracking from the macOS menu bar. Stop the timer, tag the project, and a markdown session note lands in your vault.",
 	"author": "Meirakami",

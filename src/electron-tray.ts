@@ -60,13 +60,13 @@ export function getElectronRemote(): ElectronRemote | null {
 	try {
 		const electron = req("electron") as { remote?: unknown } | undefined;
 		if (electron?.remote && isElectronRemote(electron.remote)) return electron.remote;
-	} catch (e) {
+	} catch {
 		/* fall through to @electron/remote */
 	}
 	try {
 		const remote = req("@electron/remote");
 		if (isElectronRemote(remote)) return remote;
-	} catch (e) {
+	} catch {
 		/* not available */
 	}
 	return null;
@@ -84,7 +84,7 @@ export function createClockIcon(
 	const image = remote.nativeImage.createEmpty();
 	for (const scale of [1, 2]) {
 		const size = 16 * scale;
-		const canvas = document.createElement("canvas");
+		const canvas = activeDocument.createElement("canvas");
 		canvas.width = size;
 		canvas.height = size;
 		const ctx = canvas.getContext("2d");
