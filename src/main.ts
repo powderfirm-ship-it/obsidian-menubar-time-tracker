@@ -1,5 +1,6 @@
 import { Platform, Plugin } from "obsidian";
 import { ElectronRemote, getElectronRemote } from "./electron-tray";
+import { StopModal, StopResult } from "./stop-modal";
 import { Timer } from "./timer";
 import { MenuBarTray, MenuTemplate } from "./tray";
 
@@ -75,10 +76,24 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	// Replaced in U4 by the real stop modal. For now, discard the session.
 	private openStopModal(elapsedMs: number): void {
+		this.modalOpen = true;
+		new StopModal(this.app, elapsedMs, this.settings.knownProjects, {
+			onSubmit: (result) => {
+				this.modalOpen = false;
+				void this.handleSubmit(elapsedMs, result);
+			},
+			onCancel: () => {
+				this.modalOpen = false;
+				this.timer?.cancel();
+			},
+		}).open();
+	}
+
+	// Replaced in U5 with the real session writer. For now, discard after logging.
+	private async handleSubmit(elapsedMs: number, result: StopResult): Promise<void> {
 		console.log(
-			`Menu-Bar Time Tracker: stop (elapsed ${elapsedMs}ms) — modal pending (U4)`,
+			`Menu-Bar Time Tracker: save ${result.project} (${elapsedMs}ms) — writer pending (U5)`,
 		);
 		this.timer?.clear();
 	}
