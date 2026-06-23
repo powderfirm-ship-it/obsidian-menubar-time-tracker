@@ -1,7 +1,7 @@
 ---
 title: "feat: Menu-Bar Project Time Tracker (Obsidian Plugin)"
 type: feat
-status: active
+status: completed
 date: 2026-06-23
 origin: docs/brainstorms/2026-06-23-menubar-time-tracker-requirements.md
 ---
