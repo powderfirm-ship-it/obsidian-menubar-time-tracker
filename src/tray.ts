@@ -1,5 +1,5 @@
 import { Platform } from "obsidian";
-import { ElectronRemote, ElectronTray, createClockIcon } from "./electron-tray";
+import { ElectronRemote, ElectronTray, IconColor, createClockIcon } from "./electron-tray";
 
 // Distinct from Headless Mode's `__headlessModeTray` so the two plugins' trays
 // never destroy each other.
@@ -13,22 +13,26 @@ export type MenuTemplate = MenuItemTemplate[];
 export interface TrayOptions {
 	onToggle: () => void;
 	buildMenuTemplate: () => MenuTemplate;
+	color: IconColor;
 }
 
 export class MenuBarTray {
 	private remote: ElectronRemote;
 	private tray: ElectronTray | null;
 	private buildMenuTemplate: () => MenuTemplate;
+	private color: IconColor;
+	private running = false;
 
 	constructor(remote: ElectronRemote, opts: TrayOptions) {
 		this.remote = remote;
 		this.buildMenuTemplate = opts.buildMenuTemplate;
+		this.color = opts.color;
 
 		const carrier = window as unknown as Record<string, ElectronTray | undefined>;
 		const stale = carrier[TRAY_GLOBAL];
 		if (stale && !stale.isDestroyed?.()) stale.destroy();
 
-		this.tray = new remote.Tray(createClockIcon(remote, false));
+		this.tray = new remote.Tray(createClockIcon(remote, false, this.color));
 		this.tray.setToolTip("Time Tracker — click to start");
 		carrier[TRAY_GLOBAL] = this.tray;
 
@@ -45,10 +49,17 @@ export class MenuBarTray {
 	}
 
 	setRunning(running: boolean): void {
+		this.running = running;
 		if (!this.tray || this.tray.isDestroyed?.()) return;
-		this.tray.setImage(createClockIcon(this.remote, running));
+		this.tray.setImage(createClockIcon(this.remote, running, this.color));
 		this.tray.setToolTip(running ? "Time Tracker — click to stop" : "Time Tracker — click to start");
 		if (!running) this.setTitle("");
+	}
+
+	setColor(color: IconColor): void {
+		this.color = color;
+		if (!this.tray || this.tray.isDestroyed?.()) return;
+		this.tray.setImage(createClockIcon(this.remote, this.running, this.color));
 	}
 
 	setTitle(text: string): void {

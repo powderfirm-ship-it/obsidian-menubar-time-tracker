@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import { DEFAULT_FOLDER } from "./constants";
+import { IconColor } from "./electron-tray";
 import type MenubarTimeTrackerPlugin from "./main";
 
 export class TimeTrackerSettingTab extends PluginSettingTab {
@@ -25,6 +26,20 @@ export class TimeTrackerSettingTab extends PluginSettingTab {
 						this.plugin.settings.sessionFolder = value.trim() || DEFAULT_FOLDER;
 						await this.plugin.saveSettings();
 					}),
+			);
+
+		new Setting(containerEl)
+			.setName("Menu-bar icon color")
+			.setDesc(
+				"White suits a dark menu bar, Black suits a light one. Auto uses a macOS template image that the system tints — but some builds render it black.",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("white", "White")
+					.addOption("black", "Black")
+					.addOption("auto", "Auto (macOS template)")
+					.setValue(this.plugin.settings.iconColor)
+					.onChange((value) => this.plugin.setIconColor(value as IconColor)),
 			);
 	}
 

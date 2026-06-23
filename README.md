@@ -13,6 +13,8 @@ Built to keep the data **yours**: plain markdown in your vault, not a SaaS datab
 - A shipped **`Time per project.base`** groups sessions by project and sums duration.
 - A running timer **survives an Obsidian restart** — it resumes from where it left off.
 - A **"Toggle timer" command** mirrors the left-click, as a fallback if the menu-bar icon is hidden behind the notch.
+- Stopping **surfaces the Obsidian window** so the tag-the-session modal is visible even when Obsidian was in the background.
+- The menu-bar icon color is configurable (**White / Black / Auto**) since some Electron builds don't honor the macOS auto-tint template.
 
 macOS-only for the live menu-bar readout (`Tray.setTitle` is macOS-only); the timer and note-writing still work elsewhere.
 

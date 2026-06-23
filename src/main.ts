@@ -1,7 +1,7 @@
 import { Notice, Platform, Plugin, normalizePath } from "obsidian";
 import { buildBaseFile } from "./base-asset";
 import { BASE_FILENAME, DEFAULT_FOLDER } from "./constants";
-import { ElectronRemote, getElectronRemote } from "./electron-tray";
+import { ElectronRemote, IconColor, getElectronRemote } from "./electron-tray";
 import { formatHuman } from "./format";
 import { addKnownProject } from "./session";
 import { TimeTrackerSettingTab } from "./settings";
@@ -20,6 +20,7 @@ export interface PluginSettings {
 	knownProjects: string[];
 	sessionFolder: string;
 	baseFilterFolder: string | null;
+	iconColor: IconColor;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -28,6 +29,9 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	knownProjects: [],
 	sessionFolder: DEFAULT_FOLDER,
 	baseFilterFolder: null,
+	// "white" suits the typical dark macOS menu bar; "auto" (template) is unreliable
+	// in some Electron builds, so it is opt-in via settings rather than the default.
+	iconColor: "white",
 };
 
 export default class MenubarTimeTrackerPlugin extends Plugin {
@@ -54,6 +58,7 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		this.tray = new MenuBarTray(this.remote, {
 			onToggle: () => this.timer?.toggle(),
 			buildMenuTemplate: () => this.buildMenuTemplate(),
+			color: this.settings.iconColor,
 		});
 
 		this.timer = new Timer({
@@ -98,6 +103,9 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 	// so a tray click during the awaited write can't fire a second stop.
 	private openStopModal(elapsedMs: number, prefill?: StopResult, attempt = 0): void {
 		this.modalOpen = true;
+		// The modal renders inside the Obsidian window — surface it so the user isn't
+		// left hunting for a hidden window after stopping from the menu bar.
+		this.focusObsidianWindow();
 		new StopModal(
 			this.app,
 			elapsedMs,
@@ -176,6 +184,24 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		}).setting;
 		setting?.open?.();
 		setting?.openTabById?.(this.manifest.id);
+	}
+
+	private focusObsidianWindow(): void {
+		try {
+			const win = this.remote?.getCurrentWindow?.();
+			if (!win) return;
+			if (win.isMinimized?.()) win.restore?.();
+			win.show();
+			win.focus();
+		} catch (e) {
+			// Best effort — the modal still opens, just possibly behind the window.
+		}
+	}
+
+	setIconColor(color: IconColor): void {
+		this.settings.iconColor = color;
+		this.tray?.setColor(color);
+		void this.saveSettings();
 	}
 
 	// Drops the "Time per project" Base next to the session folder the first time the
