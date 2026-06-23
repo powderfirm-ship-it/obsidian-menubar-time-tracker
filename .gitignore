@@ -1,0 +1,9 @@
+# build output (regenerated from src/ via `npm run build`)
+main.js
+*.js.map
+
+# dependencies
+node_modules/
+
+# os
+.DS_Store

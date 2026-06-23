@@ -1,0 +1,28 @@
+{
+	"name": "menubar-time-tracker",
+	"version": "0.1.0",
+	"description": "One-click project time tracking from the macOS menu bar for Obsidian.",
+	"main": "main.js",
+	"type": "module",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+		"typecheck": "tsc --noEmit --skipLibCheck",
+		"test": "vitest run"
+	},
+	"keywords": [
+		"obsidian",
+		"time-tracking",
+		"menu-bar"
+	],
+	"author": "Meirakami",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"builtin-modules": "^4.0.0",
+		"esbuild": "^0.25.0",
+		"obsidian": "^1.7.2",
+		"typescript": "^5.6.0",
+		"vitest": "^3.0.0"
+	}
+}

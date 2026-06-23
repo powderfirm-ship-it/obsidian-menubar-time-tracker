@@ -1,0 +1,21 @@
+/* Menu-Bar Time Tracker — stop modal layout */
+
+.mbtt-stop-modal .mbtt-elapsed {
+	font-size: var(--font-ui-large, 1.1em);
+	font-weight: var(--font-semibold, 600);
+	margin-bottom: var(--size-4-3, 12px);
+	color: var(--text-normal);
+}
+
+.mbtt-stop-modal textarea {
+	width: 100%;
+	min-height: 5em;
+	resize: vertical;
+}
+
+.mbtt-stop-modal .mbtt-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--size-4-2, 8px);
+	margin-top: var(--size-4-4, 16px);
+}
