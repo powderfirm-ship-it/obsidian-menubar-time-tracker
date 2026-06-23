@@ -14,6 +14,8 @@ import { writeSession } from "./writer";
 // the (still-running) timer so the user can retry deliberately — no infinite loop.
 const MAX_SAVE_RETRIES = 2;
 
+const COFFEE_URL = "https://buymeacoffee.com/meirakami";
+
 export interface PluginSettings {
 	running: boolean;
 	startedAt: number | null;
@@ -173,7 +175,27 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 				label: "Settings",
 				click: () => this.openSettings(),
 			},
+			{
+				label: "Buy me a coffee ☕",
+				click: () => this.openExternal(COFFEE_URL),
+			},
 		];
+	}
+
+	private openExternal(url: string): void {
+		try {
+			const req = (window as unknown as {
+				require?: (id: string) => { shell?: { openExternal(u: string): void } };
+			}).require;
+			const shell = req?.("electron")?.shell;
+			if (shell) {
+				shell.openExternal(url);
+				return;
+			}
+		} catch {
+			/* fall through to window.open */
+		}
+		window.open(url, "_blank");
 	}
 
 	// Opens this plugin's settings pane. `app.setting` is an undocumented internal
