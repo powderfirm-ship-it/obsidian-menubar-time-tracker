@@ -5,6 +5,7 @@ import {
 	buildFrontmatter,
 	buildNote,
 	nextAvailablePath,
+	sanitizeForFilename,
 	saveMinutes,
 } from "../src/session";
 
@@ -45,6 +46,24 @@ describe("buildFrontmatter / buildNote", () => {
 	it("produces an empty body for a blank description without crashing", () => {
 		expect(buildNote(data, "   ")).toMatch(/---\n\n$/);
 	});
+
+	it("escapes backslashes and quotes in the project name", () => {
+		const fm = buildFrontmatter({ ...data, project: 'a"b\\c' });
+		expect(fm).toContain('project: "a\\"b\\\\c"');
+	});
+});
+
+describe("sanitizeForFilename", () => {
+	it.each(["\\", "/", ":", "*", "?", '"', "<", ">", "|", "#", "^", "[", "]"])(
+		"replaces the illegal character %s with a space",
+		(ch) => {
+			expect(sanitizeForFilename(`a${ch}b`)).toBe("a b");
+		},
+	);
+
+	it("collapses runs of whitespace", () => {
+		expect(sanitizeForFilename("a   b")).toBe("a b");
+	});
 });
 
 describe("buildFilename", () => {
@@ -56,6 +75,10 @@ describe("buildFilename", () => {
 		expect(buildFilename("2026-06-23", "1432", "Client/Acme:1")).toBe(
 			"2026-06-23 1432 Client Acme 1.md",
 		);
+	});
+
+	it("falls back to 'Untitled' when the name sanitizes to empty", () => {
+		expect(buildFilename("2026-06-23", "1432", "/")).toBe("2026-06-23 1432 Untitled.md");
 	});
 });
 

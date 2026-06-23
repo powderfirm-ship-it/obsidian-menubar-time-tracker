@@ -4,9 +4,12 @@
 // plugin, which already constructs an Electron Tray from a renderer-process plugin in
 // the current Obsidian build — so this access path is proven, not speculative.
 
+// Opaque handle to an Electron Menu instance.
+export type ElectronMenu = { readonly __electronMenu?: never };
+
 export interface ElectronRemote {
-	Tray: new (image: unknown) => ElectronTray;
-	Menu: { buildFromTemplate(template: unknown[]): unknown };
+	Tray: new (image: ElectronNativeImage) => ElectronTray;
+	Menu: { buildFromTemplate(template: unknown[]): ElectronMenu };
 	nativeImage: {
 		createEmpty(): ElectronNativeImage;
 	};
@@ -19,28 +22,42 @@ export interface ElectronNativeImage {
 
 export interface ElectronTray {
 	setToolTip(text: string): void;
-	setImage(image: unknown): void;
+	setImage(image: ElectronNativeImage): void;
 	setTitle(text: string, options?: { fontType?: string }): void;
-	popUpContextMenu(menu: unknown): void;
-	on(event: string, listener: () => void): void;
+	popUpContextMenu(menu: ElectronMenu): void;
+	on(event: "click" | "right-click", listener: () => void): void;
 	destroy(): void;
 	isDestroyed?(): boolean;
+}
+
+// Confirms the object actually carries the Electron pieces we use, so a shape we
+// don't expect becomes a graceful null (plugin disables) instead of a later TypeError.
+function isElectronRemote(value: unknown): value is ElectronRemote {
+	return (
+		!!value &&
+		typeof value === "object" &&
+		"Tray" in value &&
+		"Menu" in value &&
+		"nativeImage" in value
+	);
 }
 
 export function getElectronRemote(): ElectronRemote | null {
 	const req = (window as unknown as { require?: (id: string) => unknown }).require;
 	if (!req) return null;
 	try {
-		const electron = req("electron") as { remote?: ElectronRemote } | undefined;
-		if (electron?.remote) return electron.remote;
+		const electron = req("electron") as { remote?: unknown } | undefined;
+		if (electron?.remote && isElectronRemote(electron.remote)) return electron.remote;
 	} catch (e) {
 		/* fall through to @electron/remote */
 	}
 	try {
-		return req("@electron/remote") as ElectronRemote;
+		const remote = req("@electron/remote");
+		if (isElectronRemote(remote)) return remote;
 	} catch (e) {
-		return null;
+		/* not available */
 	}
+	return null;
 }
 
 // Draws a 16pt clock as a macOS template image (system-tinted) at 1x and 2x.

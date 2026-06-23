@@ -1,5 +1,6 @@
 import { Notice, Platform, Plugin, normalizePath } from "obsidian";
 import { buildBaseFile } from "./base-asset";
+import { BASE_FILENAME, DEFAULT_FOLDER } from "./constants";
 import { ElectronRemote, getElectronRemote } from "./electron-tray";
 import { formatHuman } from "./format";
 import { addKnownProject } from "./session";
@@ -9,8 +10,9 @@ import { Timer } from "./timer";
 import { MenuBarTray, MenuTemplate } from "./tray";
 import { writeSession } from "./writer";
 
-const DEFAULT_FOLDER = "Time Log/Sessions";
-const BASE_FILENAME = "Time per project.base";
+// After this many consecutive write failures, stop re-opening the modal and park
+// the (still-running) timer so the user can retry deliberately — no infinite loop.
+const MAX_SAVE_RETRIES = 2;
 
 export interface PluginSettings {
 	running: boolean;
@@ -43,6 +45,7 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			console.error(
 				"Menu-Bar Time Tracker: Electron remote API unavailable; plugin disabled.",
 			);
+			new Notice("Time Tracker: Electron API unavailable — plugin disabled.");
 			return;
 		}
 
@@ -77,6 +80,7 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		this.timer?.dispose(); // stop the render tick before tearing down the tray
 		this.tray?.destroy();
 		this.tray = null;
 	}
@@ -90,21 +94,28 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	private openStopModal(elapsedMs: number): void {
+	// `modalOpen` stays true for the whole stop→save round-trip (including retries),
+	// so a tray click during the awaited write can't fire a second stop.
+	private openStopModal(elapsedMs: number, prefill?: StopResult, attempt = 0): void {
 		this.modalOpen = true;
-		new StopModal(this.app, elapsedMs, this.settings.knownProjects, {
-			onSubmit: (result) => {
-				this.modalOpen = false;
-				void this.handleSubmit(elapsedMs, result);
+		new StopModal(
+			this.app,
+			elapsedMs,
+			this.settings.knownProjects,
+			{
+				onSubmit: (result) => {
+					void this.handleSubmit(elapsedMs, result, attempt);
+				},
+				onCancel: () => {
+					this.modalOpen = false;
+					this.timer?.cancel();
+				},
 			},
-			onCancel: () => {
-				this.modalOpen = false;
-				this.timer?.cancel();
-			},
-		}).open();
+			prefill,
+		).open();
 	}
 
-	private async handleSubmit(elapsedMs: number, result: StopResult): Promise<void> {
+	private async handleSubmit(elapsedMs: number, result: StopResult, attempt: number): Promise<void> {
 		const startMs = this.settings.startedAt ?? Date.now() - elapsedMs;
 		const endMs = startMs + elapsedMs;
 		try {
@@ -120,11 +131,19 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			this.timer?.clear(); // clears running state and persists (incl. knownProjects)
 			new Notice(`Session saved — ${result.project}, ${formatHuman(elapsedMs / 60000)}`);
 			void this.deployBaseIfAbsent();
+			this.modalOpen = false;
 		} catch (e) {
 			console.error("Menu-Bar Time Tracker: failed to write session", e);
-			new Notice("Time Tracker: couldn't save the session — timer kept, try again.");
-			// Keep elapsed; re-present the modal so the session isn't lost.
-			this.openStopModal(elapsedMs);
+			if (attempt >= MAX_SAVE_RETRIES) {
+				new Notice(
+					"Time Tracker: couldn't save after retries — the timer is still running; stop it again to retry.",
+				);
+				this.modalOpen = false; // park; the timer is still running so the user can stop again
+				return;
+			}
+			new Notice("Time Tracker: couldn't save the session — try again.");
+			// Re-present the modal with the user's input intact; modalOpen stays true.
+			this.openStopModal(elapsedMs, result, attempt + 1);
 		}
 	}
 
@@ -149,6 +168,8 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		];
 	}
 
+	// Opens this plugin's settings pane. `app.setting` is an undocumented internal
+	// API; the optional chaining makes a no-op the worst case if it ever changes.
 	private openSettings(): void {
 		const setting = (this.app as unknown as {
 			setting?: { open?: () => void; openTabById?: (id: string) => void };
@@ -157,8 +178,8 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 		setting?.openTabById?.(this.manifest.id);
 	}
 
-	// Drops the "Time per project" Base next to the session folder the first time
-	// the folder exists, templating its filter and never overwriting an existing file.
+	// Drops the "Time per project" Base next to the session folder the first time the
+	// folder exists, templating its filter and never overwriting or re-deploying.
 	private async deployBaseIfAbsent(): Promise<void> {
 		const folder = normalizePath(this.settings.sessionFolder);
 		const parent = folder.includes("/") ? folder.slice(0, folder.lastIndexOf("/")) : "";
@@ -171,6 +192,9 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			}
 			return;
 		}
+		// Already deployed once (e.g. the user later moved the folder) — don't drop a
+		// second Base; the drift Notice tells them to update the existing filter.
+		if (this.settings.baseFilterFolder) return;
 		// The parent must exist; it will once a session has been written. Until then,
 		// skip — the next write retries.
 		if (parent && !this.app.vault.getAbstractFileByPath(parent)) return;

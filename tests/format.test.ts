@@ -29,6 +29,7 @@ describe("formatHuman", () => {
 		[42, "42m"],
 		[63, "1h 03m"],
 		[840, "14h 00m"],
+		[-5, "0m"],
 	])("formats %i minutes as %s", (minutes, expected) => {
 		expect(formatHuman(minutes)).toBe(expected);
 	});
@@ -48,5 +49,10 @@ describe("minutesBetween", () => {
 
 	it("is 0 for an instant session", () => {
 		expect(minutesBetween(base, base)).toBe(0);
+	});
+
+	it("returns 0 for unparseable input instead of NaN", () => {
+		expect(minutesBetween("not-a-date", base)).toBe(0);
+		expect(minutesBetween(base, "nonsense")).toBe(0);
 	});
 });

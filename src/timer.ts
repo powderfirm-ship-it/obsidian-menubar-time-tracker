@@ -1,6 +1,5 @@
 import { Notice } from "obsidian";
 import { formatTrayElapsed } from "./format";
-import { MenuBarTray } from "./tray";
 
 // A timer that resumes past this on load is probably a crash leftover — warn rather
 // than silently trust it.
@@ -8,8 +7,10 @@ const STALE_RESUME_MS = 8 * 60 * 60 * 1000;
 
 // The timer reads and writes the running fields on the host's single in-memory
 // settings object, so every save() serializes the same object (no field-drop races).
+// `tray` is narrowed to the two methods the timer actually calls, which keeps the
+// timer decoupled from the concrete MenuBarTray.
 export interface TimerHost {
-	tray: MenuBarTray;
+	tray: { setRunning(running: boolean): void; setTitle(text: string): void };
 	settings: { running: boolean; startedAt: number | null };
 	save(): Promise<void>;
 	registerInterval(id: number): number;
@@ -33,6 +34,12 @@ export class Timer {
 		const { startedAt } = this.host.settings;
 		if (startedAt == null) return 0;
 		return Math.max(0, Date.now() - startedAt);
+	}
+
+	private persist(): void {
+		this.host
+			.save()
+			.catch((e) => console.error("Menu-Bar Time Tracker: failed to persist timer state", e));
 	}
 
 	private render(): void {
@@ -63,7 +70,7 @@ export class Timer {
 	start(): void {
 		this.host.settings.running = true;
 		this.host.settings.startedAt = Date.now();
-		void this.host.save();
+		this.persist();
 		this.host.tray.setRunning(true);
 		this.startInterval();
 	}
@@ -78,6 +85,8 @@ export class Timer {
 		this.host.openStopModal(elapsed);
 	}
 
+	// Public user-facing abort. Kept distinct from clear() (the internal cleanup
+	// primitive) for call-site clarity, even though the behavior is currently the same.
 	cancel(): void {
 		this.clear();
 	}
@@ -87,7 +96,7 @@ export class Timer {
 		this.stopInterval();
 		this.host.settings.running = false;
 		this.host.settings.startedAt = null;
-		void this.host.save();
+		this.persist();
 		this.host.tray.setRunning(false);
 	}
 
@@ -99,8 +108,13 @@ export class Timer {
 		this.render(); // visible immediately, before the first interval tick
 		this.startInterval();
 		if (elapsed > STALE_RESUME_MS) {
-			const hours = Math.round(elapsed / 3600000);
+			const hours = Math.floor(elapsed / 3600000);
 			new Notice(`Time Tracker resumed a timer running for ~${hours}h — stop it if that's stale.`);
 		}
+	}
+
+	// Stop the render tick on plugin unload, before the tray is torn down.
+	dispose(): void {
+		this.stopInterval();
 	}
 }

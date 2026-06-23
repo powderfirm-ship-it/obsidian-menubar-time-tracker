@@ -1,7 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
+import { DEFAULT_FOLDER } from "./constants";
 import type MenubarTimeTrackerPlugin from "./main";
-
-const DEFAULT_FOLDER = "Time Log/Sessions";
 
 export class TimeTrackerSettingTab extends PluginSettingTab {
 	private plugin: MenubarTimeTrackerPlugin;

@@ -5,7 +5,10 @@ import { ElectronRemote, ElectronTray, createClockIcon } from "./electron-tray";
 // never destroy each other.
 const TRAY_GLOBAL = "__menubarTimeTrackerTray";
 
-export type MenuTemplate = Array<Record<string, unknown>>;
+export type MenuItemTemplate =
+	| { label: string; enabled?: boolean; click?: () => void }
+	| { type: "separator" };
+export type MenuTemplate = MenuItemTemplate[];
 
 export interface TrayOptions {
 	onToggle: () => void;

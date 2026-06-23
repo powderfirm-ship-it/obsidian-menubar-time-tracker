@@ -22,8 +22,11 @@ export function formatHuman(minutes: number): string {
 	return `${m}m`;
 }
 
-// Whole minutes between two ISO timestamps, rounded to nearest.
+// Whole minutes between two ISO timestamps, rounded to nearest. Returns 0 for
+// unparseable input rather than propagating NaN into a session's duration.
 export function minutesBetween(startISO: string, endISO: string): number {
-	const ms = new Date(endISO).getTime() - new Date(startISO).getTime();
-	return Math.round(ms / 60000);
+	const startMs = new Date(startISO).getTime();
+	const endMs = new Date(endISO).getTime();
+	if (Number.isNaN(startMs) || Number.isNaN(endMs)) return 0;
+	return Math.round((endMs - startMs) / 60000);
 }

@@ -57,6 +57,8 @@ async function ensureFolder(app: App, folder: string): Promise<void> {
 	try {
 		await app.vault.createFolder(folder);
 	} catch (e) {
-		// Already exists or created concurrently — safe to ignore.
+		// Tolerate the "already exists / created concurrently" race, but surface any
+		// real failure (permissions, read-only vault) to the caller's catch.
+		if (!app.vault.getAbstractFileByPath(folder)) throw e;
 	}
 }

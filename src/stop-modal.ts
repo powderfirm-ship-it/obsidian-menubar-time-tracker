@@ -53,11 +53,19 @@ export class StopModal extends Modal {
 	private description = "";
 	private saveButton: ButtonComponent | null = null;
 
-	constructor(app: App, elapsedMs: number, knownProjects: string[], handlers: StopHandlers) {
+	constructor(
+		app: App,
+		elapsedMs: number,
+		knownProjects: string[],
+		handlers: StopHandlers,
+		prefill?: StopResult,
+	) {
 		super(app);
 		this.elapsedMs = elapsedMs;
 		this.knownProjects = knownProjects;
 		this.handlers = handlers;
+		this.project = prefill?.project ?? "";
+		this.description = prefill?.description ?? "";
 	}
 
 	onOpen(): void {
@@ -71,6 +79,7 @@ export class StopModal extends Modal {
 
 		new Setting(contentEl).setName("Project").addText((text) => {
 			text.setPlaceholder("Project name");
+			text.setValue(this.project);
 			text.onChange((value) => {
 				this.project = value;
 				this.refreshSaveState();
@@ -83,6 +92,7 @@ export class StopModal extends Modal {
 
 		new Setting(contentEl).setName("Description").addTextArea((area) => {
 			area.setPlaceholder("What did you work on?");
+			area.setValue(this.description);
 			area.onChange((value) => {
 				this.description = value;
 			});
