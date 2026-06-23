@@ -193,7 +193,7 @@ export default class MenubarTimeTrackerPlugin extends Plugin {
 			if (win.isMinimized?.()) win.restore?.();
 			win.show();
 			win.focus();
-		} catch (e) {
+		} catch {
 			// Best effort — the modal still opens, just possibly behind the window.
 		}
 	}

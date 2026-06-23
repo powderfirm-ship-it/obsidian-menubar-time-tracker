@@ -1,6 +1,6 @@
 {
 	"name": "menubar-time-tracker",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "One-click project time tracking from the macOS menu bar for Obsidian.",
 	"main": "main.js",
 	"type": "module",
